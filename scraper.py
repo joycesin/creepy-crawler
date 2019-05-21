@@ -22,10 +22,10 @@ def start():
     df_count = 0
     df = pd.DataFrame(columns=["url","score"])
     
-    # add headers to urls, mark them as unchecked
+    # mark urls as unchecked
     links = {}
     for url in urls:
-        links[formatUrl(url)] = 0
+        links[url] = 0
 
     while df_count < 30:
         # get the top page and pop it off list of links
@@ -33,19 +33,19 @@ def start():
             print("Links dict is empty")
             break
         start_page = ""
+        new_links = {}
         # get an element in dict if checked field = 0
         for x in links: 
             if not links[x]:
                 start_page = x
-                start_page_url = start_page.get_full_url()
                 links[x] = 1
                 break
         if not start_page: 
             print("Links dict is all checked")
             break
-        print("trying to open " + start_page_url)
+        print("trying to open " + start_page)
         try: 
-            page = urllib2.urlopen(start_page)
+            page = urllib2.urlopen(formatUrl(start_page))
         except:
             print("Could not open start_page")
             continue
@@ -53,32 +53,39 @@ def start():
         # parse html
         soup = BeautifulSoup(page, 'html.parser')
 
-        # get words in title
-        try:
-            title_list = soup.title.string.split()
-        except:
-            print("Could not parse title")
-            continue
+        # handle google search cases
+        if start_page.startswith("http://www.google"):
+            for link in soup.select('.r a'):
+                new_links[link.get('href')] = 0
+        else:
 
-        # get words of meta tags
-        tag_list = getMeta(soup)
+            # get words in title
+            try:
+                title_list = soup.title.string.split()
+            except:
+                print("Could not parse title")
+                continue
 
-        # check relevance and rank URL according to score, return score
-        score = 0
-        score += checkRelevance(tag_list) 
-        score += checkRelevance(title_list)
+            # get words of meta tags
+            tag_list = getMeta(soup)
+
+            # check relevance and rank URL according to score, return score
+            score = 0
+            score += checkRelevance(tag_list) 
+            score += checkRelevance(title_list)
 
 
-        # appends url to df if score > 0, can adjust criteria later
-        if score >= 3:
-            df.loc[df_count] = [start_page_url, score]
-            df_count += 1
-            df.sort_values("score")
-            print df
-            export_csv = df.to_csv(r'/Users/joycesin/Documents/crawler/urls.csv', index = None, header=True)
+            # appends url to df if score > 0, can adjust criteria later
+            if score >= 3:
+                df.loc[df_count] = [start_page, score]
+                df_count += 1
+                df.sort_values("score")
+                print df
+                export_csv = df.to_csv(r'/Users/joycesin/Documents/crawler/urls.csv', index = None, header=True)
+            new_links = getLinks(soup)
 
+        # end if-else, update overall links dict with new_links
         # update list of links without duplicates, even for urls that weren't added to df cause they might be search result pages etc
-        new_links = getLinks(soup)
         new_links.update(links)
         links = new_links
     
@@ -121,8 +128,7 @@ def getLinks(soup):
         new_link = link.get('href')
         if check_blacklist(new_link):
             continue
-        new_links[formatUrl(link.get('href'))] = 0
-    #print new_links
+        new_links[new_link] = 0
     return new_links
 
 

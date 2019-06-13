@@ -14,7 +14,6 @@ urls = ["http://www.google.com/search?q=telecom+services+brought+down+cyberattac
 
 """
 "https://blog.radware.com/security/2016/03/cyber-security-threats-in-telecom/", 
-
 "http://telecoms.com/497227/orange-drops-e515-million-on-yet-another-cybersecurity-acquisition/", "https://www.lightreading.com/carrier-security.asp", "http://www.computerweekly.com/news/252459155/Malaysia-takes-broad-base-approach-to-5G-security", "http://www.computerweekly.com/news/252450417/Optus-to-acquire-Hivint-in-cyber-security-deal", "http://www.upguard.com/blog/how-secure-is-your-cell-phone-provider"]
 """
 
@@ -35,29 +34,28 @@ def start():
         links[url] = 0
 
     while df_count < 100:
+        # get the top page and pop it off list of links
         if not links:
             print("Links dict is empty")
             break
         start_page = ""
-        start_page_found = False
         new_links = {}
         # get an element in dict if checked field = 0
-        print links
         for x in links: 
             if not links[x]:
                 start_page = x
-                start_page_found = True
                 links[x] = 1
                 break
-        if not start_page_found: 
+        if not start_page: 
             print("Links dict is all checked")
             break
 
         try: 
+            #page = urllib2.urlopen(formatUrl(start_page))
             page = requests.get(start_page, headers={'User-Agent':'Mozilla 5.10'})
-            #print("opened " + start_page)
+            print("opened " + start_page)
         except:
-            print("Could not open start_page")
+            print("Could not open page")
             continue
 
         # parse html
@@ -73,33 +71,33 @@ def start():
             for link in soup.find_all('a'):
                 try:
                     new_link = link.get('href').split("/url?q=")[1].split("&sa=")[0]
-                    #print new_link
+                    print("FOUND LINK!!")
                     new_links[new_link] = 0
                 except:
                     continue
  
         else:
-            continue
+
             # get words in title
+            title_list = []
             try:
                 title_list = soup.title.string.split()
             except:
                 print("Could not parse title")
                 continue
 
-            # get words of meta tags, combine with title words in a set
+            # get words of meta tags
             tag_list = getMeta(soup)
             for title_word in title_list:
-                tag_list.add(title_word)
-            print tag_list
+	            tag_list.add(title_word)
 
             # check relevance and rank URL according to score, return score
             score = 0
             score += checkRelevance(tag_list) 
 
             # only non-google search results will affect score, google results are just to populate new_links
-            # appends url to df if score > 3, can adjust criteria later
-            if score > 3:
+            # appends url to df if score > 0, can adjust criteria later
+            if score >= 3:
                 df.loc[df_count] = [start_page, score]
                 df_count += 1
                 df.sort_values("score")
@@ -121,16 +119,12 @@ def start():
 def getMeta(soup):
     tag_list = set()
 
-    try:
-        data = soup.meta.find_all(itemprop="keywords") + soup.meta.find_all(itemprop="specialty") + soup.meta.find_all(name="keywords") + soup.meta.find_all(property="article:tag")
-        for tag_object in data:
-            tag = tag_object.get("content", None)     
- 
-            print tag
-            tag_list.add(tag)
-    except:
-        print("no metadata")
-
+    tags = soup.find_all("meta", property="article:tag")
+    tags.extend(soup.find_all("meta", itemprop="keywords"))
+    tags.extend(soup.find_all("meta", itemprop="specialty"))
+    tags.extend(soup.select("meta", name="keywords"))
+    for tag in tags:
+        tag_list.add(tag.get("content", None))
     return tag_list
 
 
@@ -165,5 +159,3 @@ def getLinks(soup):
 
 
 start()
-    
-
